@@ -1,0 +1,9 @@
+{
+  "name": "f16-island-warfare-pvp",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Blue vs Red F-16 island warfare multiplayer server",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "express": "^4.21.2", "socket.io": "^4.8.1" }
+}
