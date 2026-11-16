@@ -23,7 +23,8 @@ canvas{position:fixed;left:0;top:0;width:100%;height:100%;display:block}
 #ov button{margin-top:14px;font-size:16px;padding:12px 28px}
 
 #mpPanel{position:fixed;top:calc(58px + var(--st));left:12px;z-index:10;width:min(310px,calc(100vw - 24px));padding:12px;border:1px solid rgba(120,255,160,.6);border-radius:12px;background:rgba(3,12,18,.86);backdrop-filter:blur(8px);color:#d9ffe4;font:600 12px/1.4 ui-monospace,monospace;touch-action:auto}
-#mpPanel .mpRow{display:flex;gap:6px;margin-top:7px}#mpPanel input{min-width:0;flex:1;background:#101d25;color:#fff;border:1px solid #587564;border-radius:7px;padding:8px;font:inherit;text-transform:uppercase}#mpPanel button{background:#173324;color:#d9ffe4;border:1px solid #5cff8a;border-radius:7px;padding:8px 10px;font:inherit;cursor:pointer}#mpPanel button:disabled{opacity:.45}#mpStatus{margin-top:7px;color:#9eb9a7}#mpRoom{color:#5cff8a;font-weight:900;letter-spacing:2px}
+#mpPanel .mpRow{display:flex;gap:6px;margin-top:7px}#mpPanel.in-room .mpRow{display:none}#mpPanel input{min-width:0;flex:1;background:#101d25;color:#fff;border:1px solid #587564;border-radius:7px;padding:8px;font:inherit;text-transform:uppercase}#mpPanel button{background:#173324;color:#d9ffe4;border:1px solid #5cff8a;border-radius:7px;padding:8px 10px;font:inherit;cursor:pointer}#mpPanel button:disabled{opacity:.45}#mpStatus{margin-top:7px;color:#9eb9a7}#mpRoom{color:#5cff8a;font-weight:900;letter-spacing:1px;user-select:text}#mpPanel.in-room{width:164px}
+@media(max-width:420px){#mpPanel.in-room{width:134px;font-size:11px}#pvpHud{min-width:0;max-width:calc(100vw - 178px);font-size:10px}}
 #pvpHud{position:fixed;right:12px;top:calc(58px + var(--st));z-index:7;min-width:190px;padding:10px 12px;border:1px solid rgba(130,190,255,.65);border-radius:10px;background:rgba(3,12,18,.78);backdrop-filter:blur(7px);font:700 12px/1.5 ui-monospace,monospace;color:#e8f3ff;pointer-events:none}
 #threatBanner{position:fixed;z-index:8;top:calc(118px + var(--st));left:50%;transform:translateX(-50%);display:none;max-width:calc(100vw - 28px);padding:11px 18px;border:2px solid #ff5148;border-radius:9px;background:rgba(70,5,5,.9);color:#fff;font:900 14px/1.25 ui-monospace,monospace;letter-spacing:1px;text-align:center;box-shadow:0 0 22px rgba(255,45,35,.45);pointer-events:none;animation:threatPulse .8s infinite alternate}@keyframes threatPulse{from{opacity:.78}to{opacity:1}}
 #pvpHud .blue{color:#67b7ff}#pvpHud .red{color:#ff7777}#pvpTeam.blue{color:#67b7ff}#pvpTeam.red{color:#ff7777}#pvpHud .muted{color:#9eb9a7}
@@ -364,7 +365,7 @@ function cityBuilding(cx,cz,index,seed,blockX,blockZ,team){
  if(index%4===0)for(let f=1;f<Math.min(floors,6);f+=2)addPart(w*.72,.25,2.2,0x777b79,0,f*fh,-d/2-1.1);
  const g=new T.Group(),wm=new T.Mesh(mergeBoxes(walls,false),wallMat),tm=new T.Mesh(mergeBoxes(trim,true),TRIM_MAT);g.add(wm,tm);
  g.position.set(cx,gg(cx,cz),cz);g.rotation.y=(Math.floor(u*4)%4)*Math.PI/2;sc.add(g);
- return addT({team,cid:index,args:[cx,cz,index,seed,blockX,blockZ,team],n:tower?'City tower':'City building',m:g,hp:190+floors*28,r:Math.max(w,d)*.72,h:h*.55,city:1,cityParts:[],citySpec:{walls,trim,wallMat,wm,tm},cityHeight:h});
+ return addT({team,cid:index,args:[cx,cz,index,seed,blockX,blockZ,team],n:tower?'City tower':'City building',m:g,hp:190+floors*28,maxhp:190+floors*28,r:Math.max(w,d)*.72,h:h*.55,city:1,cityParts:[],citySpec:{walls,trim,wallMat,wm,tm},cityHeight:h});
 }
 function cityDistrict(bx0,bz0,seed,team){
  const cx=bx0+(team==='red'?-620:620),cz=bz0,step=180;
@@ -409,16 +410,38 @@ function crash(){if(J.dead>0)return;MP.deathSeq=MP.lastSpawnSeq;boom(J.p,14);jet
 const st=$('stick'),kn=$('knob');let sid=null;
 function sMove(e){const r=st.getBoundingClientRect(),R_=r.width/2-24;let dx=(e.clientX-r.left-r.width/2)/R_,dy=(e.clientY-r.top-r.height/2)/R_;const l=Math.hypot(dx,dy);if(l>1){dx/=l;dy/=l}tch.x=dx;tch.y=dy;kn.style.transform=`translate(${dx*R_}px,${dy*R_}px)`}
 st.addEventListener('pointerdown',e=>{sid=e.pointerId;st.setPointerCapture(sid);sMove(e)});st.addEventListener('pointermove',e=>{if(e.pointerId===sid)sMove(e)});
-const sEnd=e=>{if(e.pointerId===sid){sid=null;tch.x=tch.y=0;kn.style.transform=''}};st.addEventListener('pointerup',sEnd);st.addEventListener('pointercancel',sEnd);
+const sEnd=e=>{if(e.pointerId===sid){sid=null;tch.x=tch.y=0;kn.style.transform=''}};st.addEventListener('pointerup',sEnd);st.addEventListener('pointercancel',sEnd);st.addEventListener('lostpointercapture',sEnd);
 const th=$('thr');let tid=null;function setThr(){$('fill').style.height=ct.t*100+'%'}
 function tMove(e){const r=th.getBoundingClientRect();ct.t=cl(1-(e.clientY-r.top)/r.height,0,1);ct.t=ct.t>.97?1:ct.t;setThr()}
 th.addEventListener('pointerdown',e=>{tid=e.pointerId;th.setPointerCapture(tid);tMove(e)});th.addEventListener('pointermove',e=>{if(e.pointerId===tid)tMove(e)});
-const tEnd=e=>{if(e.pointerId===tid)tid=null};th.addEventListener('pointerup',tEnd);th.addEventListener('pointercancel',tEnd);
+const tEnd=e=>{if(e.pointerId===tid)tid=null};th.addEventListener('pointerup',tEnd);th.addEventListener('pointercancel',tEnd);th.addEventListener('lostpointercapture',tEnd);
 const VN=['cockpit','chase','orbit'];
 function cycle(){view=(view+1)%3;cam.near=view?.6:.12;cam.updateProjectionMatrix();cock.visible=view==0;glass.visible=view!=0;helmet.visible=view!=0;document.querySelector('[data-k=cam]').textContent='View: '+VN[view]}
 function gearT(){if(J.ground&&Math.hypot(J.v.x,J.v.z)<30){msg('Gear locked down on ground');return}J.gear^=1;gearG.visible=!!J.gear;msg(J.gear?'Gear down':'Gear up',1.2)}
 document.querySelectorAll('[data-k]').forEach(b=>{const k=b.dataset.k,dn=e=>{e.preventDefault();if(k=='gun'){gunH=true;b.classList.add('on')}else if(k=='brk'){brkH=true;b.classList.add('on')}else if(k=='fire')launch();else if(k=='bomb')dropBomb();else if(k=='flare')flare();else if(k=='cam')cycle();else if(k=='gear')gearT();else if(k=='inv'){inv=!inv;b.classList.toggle('on',inv)}},up=()=>{gunH=k=='gun'?false:gunH;brkH=k=='brk'?false:brkH;if(k=='gun'||k=='brk')b.classList.remove('on')};b.addEventListener('pointerdown',dn);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up)});
-addEventListener('keydown',e=>{K[e.code]=1;if(e.code=='Space'){launch();e.preventDefault()}if(e.code=='KeyC')cycle();if(e.code=='KeyG')gearT();if(e.code=='KeyV')flare();if(e.code=='KeyN')dropBomb()});addEventListener('keyup',e=>K[e.code]=0);
+function releaseControls(){
+ for(const key in K)K[key]=0;
+ gunH=brkH=false;
+ sid=tid=null;
+ tch.x=tch.y=0;
+ kn.style.transform='';
+ for(const button of document.querySelectorAll('[data-k=gun],[data-k=brk]'))button.classList.remove('on');
+ if(MP.room)mpSendPose(performance.now(),true);
+}
+addEventListener('blur',releaseControls);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseControls()});
+addEventListener('keydown',e=>{
+ if(!run||e.target.closest?.('input,textarea,[contenteditable]'))return;
+ K[e.code]=1;
+ if(e.code==='Space'||e.code.startsWith('Arrow'))e.preventDefault();
+ if(e.repeat)return;
+ if(e.code==='Space')launch();
+ if(e.code==='KeyC')cycle();
+ if(e.code==='KeyG')gearT();
+ if(e.code==='KeyV')flare();
+ if(e.code==='KeyN')dropBomb();
+});
+addEventListener('keyup',e=>K[e.code]=0);
 function inputs(dt){const kx=(K.ArrowRight||K.KeyD?1:0)-(K.ArrowLeft||K.KeyA?1:0),ky=(K.ArrowDown||K.KeyS?1:0)-(K.ArrowUp||K.KeyW?1:0),e=v=>Math.sign(v)*Math.pow(Math.abs(v),1.5);
  ct.x=cl(e(tch.x)+kx*.8,-1,1);ct.y=cl(e(tch.y)*(inv?-1:1)+ky*.8,-1,1);ct.rud=(K.KeyE?1:0)-(K.KeyQ?1:0);
  if(K.ShiftLeft||K.ShiftRight){ct.t=Math.min(1,ct.t+.5*dt);setThr()}if(K.ControlLeft||K.AltLeft||K.KeyX){ct.t=Math.max(0,ct.t-.5*dt);setThr()}J.thr=ct.t;J.brk=(K.KeyB||brkH)?1:0}
@@ -493,7 +516,16 @@ function updCityDebris(dt){
  }
 }
 function remoteCity(team,cid){const t=TG.find(x=>x.city&&x.team===team&&x.cid===cid);if(t&&t.alive){t.remote=1;kill(t)}}
-function resetCities(){for(const d of CITY_DEBRIS)sc.remove(d.m);CITY_DEBRIS.length=0;for(let i=TG.length-1;i>=0;i--){const t=TG[i];if(t.city&&!t.alive){TG.splice(i,1);cityBuilding(...t.args)}}}
+function resetCities(){
+ for(const d of CITY_DEBRIS)sc.remove(d.m);
+ CITY_DEBRIS.length=0;
+ for(let i=TG.length-1;i>=0;i--){
+  const t=TG[i];
+  if(!t.city)continue;
+  if(t.alive)t.hp=t.maxhp;
+  else{TG.splice(i,1);cityBuilding(...t.args)}
+ }
+}
 function kill(t){t.alive=0;score++;if(t.city&&MP.room&&!t.remote&&MP.socket?.connected)MP.socket.emit('cityDestroyed',{team:t.team,cid:t.cid});const p=tpos(t);boom(p,t.veh?5:t.city?11:15);if(t.city)collapseCity(t);else{t.m.traverse(c=>{if(c.isMesh)c.material.color.setHex(0x1b1b1b)});if(!t.veh)t.m.scale.y=.35;else t.m.rotation.z=.15}t.burn=25;if(J.lock===t)J.lock=null;
  const left=TG.filter(x=>x.alive).length;msg(left?`${t.n} destroyed. ${left} targets left`:'Mission complete: all targets destroyed',left?2.5:8)}
 function blast(p,rad,dmg){for(const t of TG){if(!t.alive)continue;const d=tpos(t).distanceTo(p)-t.r;if(d<rad)hitT(t,dmg*cl(1-d/rad,.15,1))}}
@@ -631,45 +663,382 @@ addEventListener('load',async()=>{try{
 }catch(e){console.warn(e);msg('Model failed to load, using built-in jet',4)}});
 
 /* ---------- multiplayer PvP: teams, island spawns, server-validated weapons and damage ---------- */
-const MP={socket:null,room:null,team:null,players:new Map(),projectiles:new Map(),tracers:[],remoteFlares:[],sendAcc:0,connected:false,lockId:null,lockTimer:0,lockSent:null,kills:0,deaths:0,threatLock:false,incomingUntil:0,threatData:[],lastSpawnSeq:0,spawnShieldUntil:0};
+const MP={socket:null,room:null,team:null,players:new Map(),projectiles:new Map(),tracers:[],remoteFlares:[],nextSendAt:0,roomRequest:null,threatShooters:new Set(),lockId:null,lockTimer:0,lockSent:null,kills:0,deaths:0,incomingUntil:0,threatData:[],lastSpawnSeq:0,spawnShieldUntil:0};
 function mpStatus(s){const el=$('mpStatus');if(el)el.textContent=s}
-function mpCount(){if($('mpCount'))$('mpCount').textContent=(MP.players.size+1)+'/8'}
+function mpCount(){_st('mpCount',(MP.room?MP.players.size+1:0)+'/8')}
 const _hv={};const _st=(id,v)=>{if(_hv[id]===v)return;_hv[id]=v;const el=$(id);if(el)el.textContent=v};
 function mpHud(){const team=$('pvpTeam');if(team){const t='TEAM: '+(MP.team?MP.team.toUpperCase():'NOT IN ROOM')+(MP.room?' · ROOM '+MP.room:'');if(_hv.pvpTeam!==t){_hv.pvpTeam=t;team.textContent=t;team.className=MP.team||''}}_st('pvpHealth','AIRCRAFT: '+Math.max(0,Math.round(J.hp))+'%');_st('pvpScore','KILLS '+MP.kills+' · DEATHS '+MP.deaths);_st('pvpAmmo','M61A1 VULCAN · 20 MM · 6000 RPM')}
 function mpLabel(name,team){const c=document.createElement('canvas');c.width=512;c.height=96;const x=c.getContext('2d'),color=team==='red'?'#ff7777':'#67b7ff';x.fillStyle='rgba(2,12,18,.86)';x.fillRect(0,0,512,96);x.strokeStyle=color;x.lineWidth=6;x.strokeRect(3,3,506,90);x.fillStyle='#f2f7ff';x.font='bold 42px monospace';x.textAlign='center';x.textBaseline='middle';x.fillText(String(name||'PILOT').slice(0,18),256,49);const tex=new T.CanvasTexture(c),sp=new T.Sprite(new T.SpriteMaterial({map:tex,transparent:true,depthWrite:false}));sp.scale.set(15,2.8,1);sp.position.y=8;return sp}
-function mpGetPlayer(id,name,team){let p=MP.players.get(id);if(p){if(team&&p.team!==team){p.team=team;const old=p.label;p.aircraft.remove(old);p.label=mpLabel(p.name,p.team);p.aircraft.add(p.label)}return p}const aircraft=jet.clone(true);aircraft.visible=false;aircraft.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false;o.frustumCulled=true}});const label=mpLabel(name,team);aircraft.add(label);sc.add(aircraft);p={aircraft,label,name:name||'Pilot',team:team||'blue',hp:100,targetP:V3(),targetV:V3(),targetQ:new T.Quaternion(),lastSeen:performance.now(),hasState:false,dead:false};MP.players.set(id,p);mpCount();return p}
-/* Smooth remote jets: keep a short buffer of server-stamped snapshots and draw each jet ~100 ms in the past,
-   interpolating (Hermite position using velocity, slerp rotation) between two real snapshots. */
+function mpGetPlayer(id,name,team){
+ let p=MP.players.get(id);
+ if(p)return p;
+ const aircraft=jet.clone(true);
+ aircraft.visible=false;
+ aircraft.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=false}});
+ const label=mpLabel(name,team);
+ aircraft.add(label);
+ sc.add(aircraft);
+ p={aircraft,label,name:name||'Pilot',team:team||'blue',hp:100,dead:false,hasState:false,
+    spawnSeq:0,snapshots:[],renderP:V3(),renderQ:new T.Quaternion(),extrapolating:false,recoverUntil:0};
+ MP.players.set(id,p);
+ mpCount();
+ return p;
+}
+const SNAPSHOT_INTERVAL=1000/30, MAX_EXTRAPOLATION=90;
 const RND=(v,k)=>Math.round(v*k)/k;
-MP.clockOff=null;MP.interpDelay=100;
-function mpPushSnap(p,st,a){const now=Date.now();if(!Number.isFinite(st))st=now;const sample=now-st;
- if(MP.clockOff===null||sample<MP.clockOff)MP.clockOff=sample;else MP.clockOff+=(sample-MP.clockOff)*.02;
- const b=p.buf||(p.buf=[]);if(b.length&&st<=b[b.length-1].t)return;if(b.length&&st-b[b.length-1].t>600)b.length=0;
- b.push({t:st,p:V3(a.x,a.y,a.z),v:V3(a.vx||0,a.vy||0,a.vz||0),q:new T.Quaternion(a.qx,a.qy,a.qz,a.qw).normalize()});
- if(b.length>40)b.shift()}
-function mpRenderRemote(p){const b=p.buf;if(!b||!b.length||MP.clockOff===null||!p.hasState)return false;
- const rt=Date.now()-MP.clockOff-MP.interpDelay;
- while(b.length>2&&b[1].t<=rt)b.shift();
- const a=b[0],c=b[1];
- if(c&&rt<=c.t&&rt>=a.t){const dts=(c.t-a.t)/1000||.001,k=(rt-a.t)/(c.t-a.t),k2=k*k,k3=k2*k,
-   h00=2*k3-3*k2+1,h10=k3-2*k2+k,h01=-2*k3+3*k2,h11=k3-k2;
-  p.aircraft.position.set(h00*a.p.x+h10*dts*a.v.x+h01*c.p.x+h11*dts*c.v.x,h00*a.p.y+h10*dts*a.v.y+h01*c.p.y+h11*dts*c.v.y,h00*a.p.z+h10*dts*a.v.z+h01*c.p.z+h11*dts*c.v.z);
-  p.aircraft.quaternion.copy(a.q).slerp(c.q,k)}
- else{const l=c&&rt>c.t?c:a,e=Math.min(.25,Math.max(0,(rt-l.t)/1000));
-  p.aircraft.position.copy(l.p).addScaledVector(l.v,e);p.aircraft.quaternion.copy(l.q)}
- return true}
-function mpSnapIfNew(p){p.lastSeen=performance.now();if(!p.hasState){p.hasState=true;p.aircraft.position.copy(p.targetP);p.aircraft.quaternion.copy(p.targetQ);p.aircraft.visible=!p.dead}}
-function mpRemove(id){const p=MP.players.get(id);if(!p)return;sc.remove(p.aircraft);MP.players.delete(id);mpCount()}
+let snapshotClock=null;
+function mpReceiveSnapshot(batch,now){
+ const time=batch.time;
+ if(!Number.isFinite(time)||(snapshotClock&&time<=snapshotClock.time))return;
+ const offset=now-time;
+ if(!snapshotClock||now-snapshotClock.receivedAt>500){
+  snapshotClock={time,receivedAt:now,offset,jitter:0,playhead:time-SNAPSHOT_INTERVAL*2,renderedAt:now};
+  for(const p of MP.players.values())p.snapshots.length=0;
+ }else{
+  const elapsed=time-snapshotClock.time;
+  const variation=Math.abs(now-snapshotClock.receivedAt-elapsed);
+  snapshotClock.jitter+=(Math.min(variation,100)-snapshotClock.jitter)*.15;
+  snapshotClock.offset=Math.min(offset,snapshotClock.offset+elapsed*.005);
+  snapshotClock.time=time;
+  snapshotClock.receivedAt=now;
+ }
+ for(const {id,spawnSeq,pose} of batch.states){
+  const p=MP.players.get(id);
+  if(!p||p.dead||spawnSeq!==p.spawnSeq)continue;
+  const {x,y,z,vx,vy,vz,qx,qy,qz,qw}=pose;
+  const history=p.snapshots;
+  history.push({time,p:V3(x,y,z),v:V3(vx,vy,vz),q:new T.Quaternion(qx,qy,qz,qw).normalize()});
+  if(history.length>24)history.shift();
+ }
+}
+function mpPlaybackTime(now){
+ if(!snapshotClock)return null;
+ const clock=snapshotClock;
+ const elapsed=Math.max(0,now-clock.renderedAt);
+ const delay=cl(SNAPSHOT_INTERVAL*2+clock.jitter*2.5,SNAPSHOT_INTERVAL*2,145);
+ const target=now-clock.offset-delay;
+ // Adjust playback speed gradually as the jitter buffer grows or shrinks.
+ if(elapsed>250)clock.playhead=Math.max(clock.playhead,target);
+ else{
+  const error=target-clock.playhead-elapsed;
+  clock.playhead+=elapsed*cl(1+error*.012,.65,1.35);
+ }
+ clock.renderedAt=now;
+ return clock.playhead;
+}
+function mpRenderRemote(p,time,now,dt){
+ const history=p.snapshots;
+ if(time===null||!history.length||p.dead)return;
+ while(history.length>1&&history[1].time<=time)history.shift();
+ const first=history[0],next=history[1];
+ if(next&&time>=first.time){
+  const alpha=(time-first.time)/(next.time-first.time);
+  p.renderP.copy(first.p).lerp(next.p,alpha);
+  p.renderQ.copy(first.q).slerp(next.q,alpha);
+ }else{
+  const age=cl(time-first.time,0,MAX_EXTRAPOLATION)/1000;
+  p.renderP.copy(first.p).addScaledVector(first.v,age);
+  p.renderQ.copy(first.q);
+ }
+ const extrapolating=!next&&time-first.time>SNAPSHOT_INTERVAL;
+ if(p.extrapolating&&!extrapolating)p.recoverUntil=now+180;
+ p.extrapolating=extrapolating;
+ if(now<p.recoverUntil){
+  const blend=1-Math.exp(-28*dt);
+  p.aircraft.position.lerp(p.renderP,blend);
+  p.aircraft.quaternion.slerp(p.renderQ,blend);
+ }else{
+  p.aircraft.position.copy(p.renderP);
+  p.aircraft.quaternion.copy(p.renderQ);
+ }
+}
+function mpPlaceRemote(p,pose,spawnSeq,dead){
+ p.spawnSeq=spawnSeq;
+ p.dead=dead;
+ p.snapshots.length=0;
+ p.extrapolating=false;
+ p.recoverUntil=0;
+ p.hasState=true;
+ p.aircraft.position.set(pose.x,pose.y,pose.z);
+ p.aircraft.quaternion.set(pose.qx??0,pose.qy??0,pose.qz??0,pose.qw??1).normalize();
+ p.aircraft.visible=!dead;
+}
+function mpRosterPlayer(v){
+ const p=mpGetPlayer(v.id,v.name,v.team);
+ p.hp=v.hp??100;
+ if(v.state)mpPlaceRemote(p,v.state,v.spawnSeq,!!v.dead);
+}
+function mpRemove(id){
+ const p=MP.players.get(id);
+ if(!p)return;
+ sc.remove(p.aircraft);
+ p.label.material.map.dispose();
+ p.label.material.dispose();
+ MP.players.delete(id);
+ mpCount();
+}
 function mpProjectileSpawn(d){if(!d||MP.projectiles.has(d.id))return;let m;if(d.weapon==='missile')m=mslMesh(3.2,.075,d.team==='red'?0xff7777:0xdde6ee);else m=new T.Mesh(new T.BoxGeometry(.16,.16,5),new T.MeshBasicMaterial({color:0xffdf83,fog:false}));const pos=V3(d.x,d.y,d.z),vel=V3(d.vx,d.vy,d.vz);m.position.copy(pos);if(vel.lengthSq()>.01)m.quaternion.setFromUnitVectors(V3(0,0,-1),vel.clone().normalize());sc.add(m);MP.projectiles.set(d.id,{m,weapon:d.weapon,team:d.team,pos:pos.clone(),serverPos:pos.clone(),vel:vel.clone(),serverVel:vel.clone(),lastServerUpdate:performance.now(),trail:0,smokeAcc:0})}
-function mpProjectileRemove(d){const p=MP.projectiles.get(d.id);if(!p)return;sc.remove(p.m);MP.projectiles.delete(d.id);if(d.hit)boom(V3(d.x,d.y,d.z),13)}
-function mpGunTracerBatch(items){if(!Array.isArray(items)||!items.length)return;const bullets=items.filter(b=>b.owner!==MP.socket?.id&&[b.x,b.y,b.z,b.vx,b.vy,b.vz].every(Number.isFinite)).map(b=>({p:V3(b.x,b.y,b.z),v:V3(b.vx,b.vy,b.vz)}));if(!bullets.length)return;const g=new T.BufferGeometry(),positions=new Float32Array(bullets.length*6);g.setAttribute('position',new T.BufferAttribute(positions,3));const m=new T.LineSegments(g,new T.LineBasicMaterial({color:0xffdf91,transparent:true,opacity:.95,depthWrite:false,toneMapped:false}));sc.add(m);MP.tracers.push({m,bullets,age:0,life:.14,max:.14})}
-function updateThreatBanner(){const el=$('threatBanner');if(!el)return;const incoming=MP.threatData.length>0||performance.now()<MP.incomingUntil;if(incoming){const t=MP.threatData[0];if(t){const side=Math.abs(t.bearing)<12?'AHEAD':t.bearing>0?Math.round(Math.abs(t.bearing))+'° RIGHT':Math.round(Math.abs(t.bearing))+'° LEFT';const range=t.distance>=1000?(t.distance/1000).toFixed(1)+' KM':Math.round(t.distance)+' M';el.textContent='⚠ MISSILE '+range+' · '+side+' · '+Math.max(0,Math.round(t.closing))+' M/S CLOSING · BREAK + FLARES'}else el.textContent='⚠ MISSILE INBOUND — BREAK TURN + DEPLOY FLARES';el.style.display='block'}else if(MP.threatLock){el.textContent='⚠ RADAR LOCK — MANOEUVRE NOW';el.style.display='block'}else{el.style.display='none'}}
-function mpConnect(){if(MP.socket&&MP.socket.connected)return MP.socket;if(typeof io!=='function'){mpStatus('Server not found. Start the multiplayer server and open its web address.');return null}const socket=io({transports:['websocket'],upgrade:false,rememberUpgrade:true});MP.socket=socket;socket.on('connect',()=>{MP.connected=true;mpStatus('Connected · create a room or join with a code')});socket.on('connect_error',()=>mpStatus('Cannot reach server · check server address and try again'));socket.on('disconnect',()=>{MP.connected=false;MP.room=null;MP.team=null;MP.lockId=null;MP.lockSent=null;MP.threatLock=false;MP.incomingUntil=0;MP.threatData=[];updateThreatBanner();for(const f of MP.remoteFlares)sc.remove(f.m);MP.remoteFlares.length=0;for(const id of [...MP.players.keys()])mpRemove(id);for(const p of MP.projectiles.values())sc.remove(p.m);MP.projectiles.clear();for(const t of MP.tracers){sc.remove(t.m);t.m.geometry.dispose();t.m.material.dispose()}MP.tracers.length=0;$('mpPanel').style.display='block';$('mpRoom').style.display='none';mpStatus('Disconnected from multiplayer server');mpHud()});socket.on('roomCreated',d=>mpRoomReady(d));socket.on('roomJoined',d=>mpRoomReady(d));socket.on('roomError',d=>mpStatus(d.message||'Could not join room'));socket.on('playerJoined',d=>{mpGetPlayer(d.id,d.name,d.team);mpStatus((d.name||'Pilot')+' joined Team '+(d.team||'blue').toUpperCase())});socket.on('playerLeft',d=>{mpRemove(d.id);mpStatus((d.name||'Pilot')+' left the room')});socket.on('playerState',d=>{if(!d||d.id===socket.id||!d.state)return;const p=mpGetPlayer(d.id,d.name,d.team),a=d.state;if(![a.x,a.y,a.z,a.qx,a.qy,a.qz,a.qw].every(Number.isFinite))return;p.targetP.set(a.x,a.y,a.z);p.targetV.set(a.vx||0,a.vy||0,a.vz||0);p.targetQ.set(a.qx,a.qy,a.qz,a.qw).normalize();p.hp=a.hp??p.hp;mpSnapIfNew(p);mpPushSnap(p,d.st,a);p.aircraft.visible=!a.dead&&!p.dead});socket.on('roomRoster',d=>{for(const v of d.players||[]){if(v.id!==socket.id){const p=mpGetPlayer(v.id,v.name,v.team);if(v.state){const a=v.state;p.targetP.set(a.x,a.y,a.z);p.targetQ.set(a.qx,a.qy,a.qz,a.qw).normalize();mpSnapIfNew(p)}}}mpCount()});socket.on('roomCount',d=>{if($('mpCount'))$('mpCount').textContent=d.count+'/8'});socket.on('combatState',d=>{if(!d)return;for(const v of d.players||[]){if(v.id===socket.id){J.hp=v.hp;J.msl=v.missiles??J.msl;J.ammo=Infinity;MP.kills=v.kills||0;MP.deaths=v.deaths||0;if(v.spawnSeq!==undefined&&v.spawnSeq<MP.lastSpawnSeq)continue;if(v.dead&&J.dead<=0&&MP.deathSeq!==MP.lastSpawnSeq){MP.deathSeq=MP.lastSpawnSeq;J.dead=9;jet.visible=false;boom(J.p,15);msg('SHOT DOWN · RESPAWNING',5)}mpHud()}else{const p=mpGetPlayer(v.id,v.name,v.team);p.hp=v.hp;p.dead=!!v.dead;p.aircraft.visible=p.hasState&&!v.dead}}});socket.on('playerRespawned',d=>{if(!d)return;if(d.id===socket.id){if(Number.isFinite(d.spawnSeq)&&d.spawnSeq<=MP.lastSpawnSeq)return;MP.lastSpawnSeq=Number.isFinite(d.spawnSeq)?d.spawnSeq:MP.lastSpawnSeq+1;MP.spawnShieldUntil=performance.now()+10000;respawn();msg('RESPAWNED · 10s SPAWN PROTECTION',3)}else{const p=mpGetPlayer(d.id,d.name,d.team);p.targetP.set(d.x,d.y,d.z);p.targetQ.identity();p.buf=[];p.dead=false;p.hasState=true;p.lastSeen=performance.now();p.aircraft.position.copy(p.targetP);p.aircraft.quaternion.identity();p.aircraft.visible=true}});socket.on('weaponResult',d=>{if(!d||d.weapon!=='missile')return;msg(d.ok?'MISSILE AWAY':(d.reason||'MISSILE NOT FIRED'),d.ok?1.5:2.2)});socket.on('projectileSpawn',mpProjectileSpawn);socket.on('gunTracerBatch',mpGunTracerBatch);socket.on('projectileUpdate',d=>{const p=MP.projectiles.get(d.id);if(!p)return;p.serverPos.set(d.x,d.y,d.z);p.serverVel.set(d.vx,d.vy,d.vz);p.lastServerUpdate=performance.now()});socket.on('projectileEnd',mpProjectileRemove);socket.on('matchState',d=>{MP.match=d;for(const tm of['blue','red'])for(const id of d.dead[tm])remoteCity(tm,id)});socket.on('cityDestroyed',d=>remoteCity(d.team,d.cid));socket.on('matchReset',()=>{resetCities();msg('NEW MATCH',3)});socket.on('missileWarning',d=>{MP.threatLock=!!d?.locked;updateThreatBanner();if(d?.locked)msg('RADAR LOCK WARNING · BREAK TURN',3);else msg('RADAR LOCK CLEARED',1.2)});socket.on('missileIncoming',d=>{if(d){MP.incomingUntil=performance.now()+5000;updateThreatBanner();msg('MISSILE INBOUND · TURN HARD + FLARES',4)}});socket.on('missileThreat',d=>{MP.threatData=Array.isArray(d?.threats)?d.threats:[];MP.incomingUntil=MP.threatData.length?performance.now()+700:0;updateThreatBanner()});socket.on('flareSpawn',d=>{if(!d||d.owner===socket.id)return;const m=new T.Mesh(new T.SphereGeometry(1.25,8,6),new T.MeshBasicMaterial({color:0xffa347,fog:false}));m.position.set(d.x,d.y,d.z);sc.add(m);MP.remoteFlares.push({m,v:V3(d.vx,d.vy,d.vz),life:d.life||3.2})});socket.on('combatEvent',d=>{if(!d)return;if(d.targetId===socket.id){if(d.weapon==='shield')msg('SPAWN SHIELD · HIT ABSORBED',1.8);else if(d.weapon!=='crash')msg(d.weapon==='missile'?'MISSILE HIT · CRITICAL DAMAGE':'GUN HIT',2.2)}else if(d.shooterId===socket.id)msg(d.weapon==='missile'?'ENEMY HIT':'GUN HIT',1.5)});return socket}
-function mpRoomReady(d){MP.room=d.code;MP.team=d.team||'blue';MP.spawnShieldUntil=performance.now()+10000;MP.lastSpawnSeq=0;MP.deathSeq=-1;MP.lockId=null;MP.lockTimer=0;MP.lockSent=null;MP.match=null;for(const id of [...MP.players.keys()])mpRemove(id);$('mpPanel').style.display='none';$('mpRoom').style.display='block';$('mpRoom').textContent='ROOM '+d.code+' · '+MP.team.toUpperCase()+' TEAM';$('mpCode').value=d.code;mpStatus('Joined '+MP.team.toUpperCase()+' island · '+(d.count||1)+' pilot(s) connected');placeAtTeamSpawn();jet.position.copy(J.p);if(d.players){for(const v of d.players){if(v.id!==MP.socket.id){const p=mpGetPlayer(v.id,v.name,v.team);if(v.state){const a=v.state;p.targetP.set(a.x,a.y,a.z);p.targetQ.set(a.qx,a.qy,a.qz,a.qw).normalize();mpSnapIfNew(p)}}}}mpHud();mpCount()}
-$('mpCreate').addEventListener('click',()=>{const s=mpConnect();if(s){const go=()=>s.emit('createRoom',{name:$('mpName').value.trim().slice(0,16)||'Pilot'});if(s.connected)go();else s.once('connect',go)}});
-$('mpJoin').addEventListener('click',()=>{const code=$('mpCode').value.trim().toUpperCase();if(!code){mpStatus('Enter a valid room code first');return}const s=mpConnect();if(s){const go=()=>s.emit('joinRoom',{code,name:$('mpName').value.trim().slice(0,16)||'Pilot'});if(s.connected)go();else s.once('connect',go)}});
-function mpFindLock(dt){if(!MP.room){MP.lockId=null;return}const fw=F();let best=null,bd=4000;for(const [id,p] of MP.players){if(p.team===MP.team||!p.aircraft.visible)continue;const v=p.targetP.clone().sub(J.p),r=v.length();if(r<180||r>bd)continue;const dot=v.normalize().dot(fw);if(dot<.975)continue;best=id;bd=r}if(best===MP.lockId){if(best)MP.lockTimer+=dt}else{MP.lockId=best;MP.lockTimer=0}const el=$('pvpLock');if(el){if(MP.lockId&&MP.lockTimer>=1){el.textContent='RADAR: ENEMY LOCK';el.style.color='#ff7777'}else if(MP.lockId){el.textContent='RADAR: TRACKING';el.style.color='#ffd36a'}else{el.textContent='RADAR: SEARCHING';el.style.color='#9eb9a7'}}}
-function mpTick(dt){updateThreatBanner();for(let i=MP.tracers.length-1;i>=0;i--){const t=MP.tracers[i];t.age+=dt;t.life=t.max-t.age;t.m.material.opacity=Math.max(0,t.life/t.max);const a=t.m.geometry.attributes.position.array;for(let j=0;j<t.bullets.length;j++){const b=t.bullets[j],age=t.age,x=b.p.x+b.v.x*age,y=b.p.y+b.v.y*age-4.905*age*age,z=b.p.z+b.v.z*age,vx=b.v.x,vy=b.v.y-9.81*age,vz=b.v.z,vl=Math.hypot(vx,vy,vz)||1,k=j*6;a[k]=x;a[k+1]=y;a[k+2]=z;a[k+3]=x-vx/vl*17;a[k+4]=y-vy/vl*17;a[k+5]=z-vz/vl*17}t.m.geometry.attributes.position.needsUpdate=true;if(t.life<=0){sc.remove(t.m);t.m.geometry.dispose();t.m.material.dispose();MP.tracers.splice(i,1)}}for(let i=MP.remoteFlares.length-1;i>=0;i--){const f=MP.remoteFlares[i];f.life-=dt;f.v.y-=9.81*dt;f.m.position.addScaledVector(f.v,dt);if(f.life<=0){sc.remove(f.m);MP.remoteFlares.splice(i,1)}}if(!MP.socket||!MP.socket.connected||!MP.room)return;MP.sendAcc+=dt;if(MP.sendAcc>=.033){MP.sendAcc=0;if(J.dead<=0)MP.socket.volatile.emit('playerState',(()=>{const f=F(),r=RND;return{x:r(J.p.x,100),y:r(J.p.y,100),z:r(J.p.z,100),vx:r(J.v.x,10),vy:r(J.v.y,10),vz:r(J.v.z,10),qx:r(J.q.x,1e4),qy:r(J.q.y,1e4),qz:r(J.q.z,1e4),qw:r(J.q.w,1e4),gun:!!(gunH||K.KeyF),fx:r(f.x,1e4),fy:r(f.y,1e4),fz:r(f.z,1e4)}})())}mpFindLock(dt);{const desired=MP.lockId&&MP.lockTimer>=1?MP.lockId:null;if(desired!==MP.lockSent){MP.lockSent=desired;MP.socket.emit('lockState',{targetId:desired})}}{const nowMs=performance.now();for(const [id,p] of [...MP.players])if(p.hasState&&nowMs-p.lastSeen>12000)mpRemove(id)}for(const p of MP.players.values()){if(!mpRenderRemote(p)){const age=Math.min(.12,Math.max(0,(performance.now()-p.lastSeen)/1000)),pred=p.targetP.clone().addScaledVector(p.targetV,age);p.aircraft.position.lerp(pred,1-Math.exp(-22*dt));p.aircraft.quaternion.slerp(p.targetQ,1-Math.exp(-18*dt))}p.label.position.y=8}for(const p of MP.projectiles.values()){const since=Math.min(.15,(performance.now()-p.lastServerUpdate)/1000);p.pos.addScaledVector(p.serverVel,dt);p.pos.lerp(p.serverPos.clone().addScaledVector(p.serverVel,since),1-Math.exp(-12*dt));p.m.position.copy(p.pos);if(p.serverVel.lengthSq()>.01){const desired=new T.Quaternion().setFromUnitVectors(V3(0,0,-1),p.serverVel.clone().normalize());p.m.quaternion.slerp(desired,1-Math.exp(-24*dt))}if(p.weapon==='missile'){p.smokeAcc=(p.smokeAcc||0)+dt;while(p.smokeAcc>=.10){p.smokeAcc-=.10;fx(p.pos.clone(),V3(rnd()*.45,rnd()*.45,rnd()*.45),.22,1.4,.8,0xbfc7cb,0,.30)}}}}
+function mpProjectileRemove(d){const p=MP.projectiles.get(d.id);if(!p)return;mpDisposeEffect(p.m);MP.projectiles.delete(d.id);if(d.hit)boom(V3(d.x,d.y,d.z),13)}
+function mpGunTracerBatch(items){if(!Array.isArray(items)||!items.length)return;const bullets=items.filter(b=>b.owner!==MP.socket?.id&&[b.x,b.y,b.z,b.vx,b.vy,b.vz].every(Number.isFinite)).map(b=>({p:V3(b.x,b.y,b.z),v:V3(b.vx,b.vy,b.vz)}));if(!bullets.length)return;const g=new T.BufferGeometry(),positions=new Float32Array(bullets.length*6);g.setAttribute('position',new T.BufferAttribute(positions,3));const m=new T.LineSegments(g,new T.LineBasicMaterial({color:0xffdf91,transparent:true,opacity:.95,depthWrite:false,toneMapped:false}));m.frustumCulled=false;sc.add(m);MP.tracers.push({m,bullets,age:0,life:.14,max:.14})}
+function updateThreatBanner(){const el=$('threatBanner');if(!el)return;const incoming=performance.now()<MP.incomingUntil;if(incoming){const t=MP.threatData[0];if(t){const side=Math.abs(t.bearing)<12?'AHEAD':t.bearing>0?Math.round(Math.abs(t.bearing))+'° RIGHT':Math.round(Math.abs(t.bearing))+'° LEFT';const range=t.distance>=1000?(t.distance/1000).toFixed(1)+' KM':Math.round(t.distance)+' M';el.textContent='⚠ MISSILE '+range+' · '+side+' · '+Math.max(0,Math.round(t.closing))+' M/S CLOSING · BREAK + FLARES'}else el.textContent='⚠ MISSILE INBOUND — BREAK TURN + DEPLOY FLARES';el.style.display='block'}else if(MP.threatShooters.size){el.textContent='⚠ RADAR LOCK — MANOEUVRE NOW';el.style.display='block'}else{el.style.display='none'}}
+function mpDisposeEffect(object){
+ sc.remove(object);
+ object.traverse(node=>{
+  if(node.isMesh||node.isLine){node.geometry.dispose();node.material.dispose()}
+ });
+}
+function mpClearEffects(){
+ for(const {m} of MP.projectiles.values())mpDisposeEffect(m);
+ MP.projectiles.clear();
+ for(const {m} of MP.tracers)mpDisposeEffect(m);
+ MP.tracers.length=0;
+ for(const {m} of MP.remoteFlares)mpDisposeEffect(m);
+ MP.remoteFlares.length=0;
+ MP.threatShooters.clear();
+ MP.threatData=[];
+ MP.incomingUntil=0;
+ updateThreatBanner();
+}
+function mpPilotDown(){
+ if(J.dead>0||MP.deathSeq===MP.lastSpawnSeq)return;
+ MP.deathSeq=MP.lastSpawnSeq;
+ J.hp=0;
+ J.dead=9;
+ jet.visible=false;
+ boom(J.p,15);
+ msg('SHOT DOWN · RESPAWNING',5);
+}
+function mpConnect(){
+ if(MP.socket)return MP.socket;
+ if(typeof io!=='function'){
+  mpStatus('Server not found. Open the game from its multiplayer server.');
+  return null;
+ }
+ const socket=io({transports:['websocket','polling'],tryAllTransports:true});
+ MP.socket=socket;
+ socket.on('connect',()=>{
+  if(MP.roomRequest)socket.emit(MP.roomRequest.event,MP.roomRequest.data);
+  else mpStatus('Connected · create a room or join with a code');
+ });
+ socket.on('connect_error',()=>{
+  MP.roomRequest=null;
+  mpStatus('Cannot reach the multiplayer server · try again');
+ });
+ socket.on('disconnect',()=>{
+  const previous=MP.room;
+  MP.roomRequest=MP.room=MP.team=MP.match=null;
+  MP.lockId=MP.lockSent=null;
+  MP.lockTimer=0;
+  MP.kills=MP.deaths=0;
+  snapshotClock=null;
+  mpClearEffects();
+  for(const id of MP.players.keys())mpRemove(id);
+  $('mpPanel').classList.remove('in-room');
+  $('mpRoom').style.display='none';
+  mpStatus(previous?'Disconnected · use Join room to return to '+previous:'Disconnected from multiplayer server');
+  mpCount();
+  mpHud();
+ });
+ socket.on('roomCreated',mpRoomReady);
+ socket.on('roomJoined',mpRoomReady);
+ socket.on('roomError',d=>{
+  MP.roomRequest=null;
+  mpStatus(d.message||'Could not join room');
+ });
+ socket.on('playerJoined',d=>{
+  mpRosterPlayer(d);
+  mpStatus((d.name||'Pilot')+' joined Team '+d.team.toUpperCase());
+ });
+ socket.on('playerLeft',d=>{
+  mpRemove(d.id);
+  MP.threatShooters.delete(d.id);
+  mpStatus((d.name||'Pilot')+' left the room');
+ });
+ socket.on('roomSnapshot',d=>{
+  if(!MP.room)return;
+  const now=performance.now();
+  mpReceiveSnapshot(d,now);
+  mpGunTracerBatch(d.gunTracers);
+  for(const update of d.missiles){
+   const p=MP.projectiles.get(update.id);
+   if(!p)continue;
+   p.serverPos.set(update.x,update.y,update.z);
+   p.serverVel.set(update.vx,update.vy,update.vz);
+   p.lastServerUpdate=now;
+  }
+  if(d.threats){
+   MP.threatData=d.threats.find(t=>t.targetId===socket.id)?.threats||[];
+   MP.incomingUntil=MP.threatData.length?now+700:0;
+  }
+ });
+ socket.on('combatState',d=>{
+  for(const v of d.players){
+   if(v.id===socket.id){
+    if(v.spawnSeq!==MP.lastSpawnSeq)continue;
+    J.hp=v.hp;
+    J.msl=v.missiles??J.msl;
+    MP.kills=v.kills;
+    MP.deaths=v.deaths;
+    if(v.dead)mpPilotDown();
+    mpHud();
+   }else{
+    const p=MP.players.get(v.id);
+    if(!p||p.spawnSeq!==v.spawnSeq)continue;
+    p.hp=v.hp;
+    p.dead=v.dead;
+    p.aircraft.visible=p.hasState&&!v.dead;
+   }
+  }
+ });
+ socket.on('playerRespawned',d=>{
+  if(d.id===socket.id){
+   if(d.spawnSeq<=MP.lastSpawnSeq)return;
+   MP.lastSpawnSeq=d.spawnSeq;
+   respawn();
+   MP.nextSendAt=0;
+   msg('RESPAWNED · 10s SPAWN PROTECTION',3);
+  }else{
+   const p=mpGetPlayer(d.id,d.name,d.team);
+   p.hp=100;
+   mpPlaceRemote(p,d,d.spawnSeq,false);
+  }
+ });
+ socket.on('weaponResult',d=>{
+  if(d?.weapon==='missile')msg(d.ok?'MISSILE AWAY':(d.reason||'MISSILE NOT FIRED'),d.ok?1.5:2.2);
+ });
+ socket.on('projectileSpawn',mpProjectileSpawn);
+ socket.on('projectileEnd',mpProjectileRemove);
+ socket.on('matchState',d=>{
+  MP.match=d;
+  for(const team of ['blue','red'])for(const id of d.dead[team])remoteCity(team,id);
+ });
+ socket.on('cityDestroyed',d=>remoteCity(d.team,d.cid));
+ socket.on('matchReset',()=>{
+  mpClearEffects();
+  resetCities();
+  msg('NEW MATCH',3);
+ });
+ socket.on('missileWarning',d=>{
+  if(d.locked){
+   MP.threatShooters.add(d.shooterId);
+   msg('RADAR LOCK WARNING · BREAK TURN',3);
+  }else{
+   MP.threatShooters.delete(d.shooterId);
+   if(!MP.threatShooters.size)msg('RADAR LOCK CLEARED',1.2);
+  }
+ });
+ socket.on('missileIncoming',()=>{
+  MP.incomingUntil=performance.now()+1500;
+  msg('MISSILE INBOUND · TURN HARD + FLARES',4);
+ });
+ socket.on('flareSpawn',d=>{
+  if(d.owner===socket.id)return;
+  const m=new T.Mesh(new T.SphereGeometry(1.25,8,6),new T.MeshBasicMaterial({color:0xffa347,fog:false}));
+  m.position.set(d.x,d.y,d.z);
+  sc.add(m);
+  MP.remoteFlares.push({m,v:V3(d.vx,d.vy,d.vz),life:d.life});
+ });
+ socket.on('combatEvent',d=>{
+  if(d.targetId===socket.id){
+   if(d.dead)mpPilotDown();
+   else msg(d.blocked?'SPAWN SHIELD · HIT ABSORBED':d.weapon==='missile'?'MISSILE HIT · CRITICAL DAMAGE':'GUN HIT',2.2);
+  }else{
+   const p=MP.players.get(d.targetId);
+   if(p&&d.dead){p.dead=true;p.aircraft.visible=false}
+   if(d.shooterId===socket.id&&!d.blocked)msg(d.weapon==='missile'?'ENEMY HIT':'GUN HIT',1.5);
+  }
+ });
+ return socket;
+}
+function mpRoomReady(d){
+ MP.room=d.code;
+ MP.team=d.team;
+ MP.roomRequest=MP.match=null;
+ MP.lastSpawnSeq=0;
+ MP.deathSeq=-1;
+ MP.lockId=MP.lockSent=null;
+ MP.lockTimer=0;
+ MP.nextSendAt=0;
+ snapshotClock=null;
+ for(const id of MP.players.keys())mpRemove(id);
+ $('mpPanel').classList.add('in-room');
+ $('mpRoom').style.display='block';
+ $('mpRoom').textContent='ROOM '+d.code+' · '+d.team.toUpperCase()+' TEAM';
+ $('mpCode').value=d.code;
+ mpStatus('Share the room code with another pilot');
+ resetCities();
+ respawn();
+ for(const v of d.players)if(v.id!==MP.socket.id)mpRosterPlayer(v);
+ mpHud();
+ mpCount();
+}
+function mpRequestRoom(event,code){
+ if(MP.room||MP.roomRequest)return;
+ const socket=mpConnect();
+ if(!socket)return;
+ const data={name:$('mpName').value.trim()||'Pilot',code};
+ MP.roomRequest={event,data};
+ mpStatus(event==='createRoom'?'Creating room…':'Joining room…');
+ if(socket.connected)socket.emit(event,data);
+ else if(!socket.active)socket.connect();
+}
+$('mpCreate').addEventListener('click',()=>mpRequestRoom('createRoom'));
+$('mpJoin').addEventListener('click',()=>{
+ const code=$('mpCode').value.trim().toUpperCase();
+ if(code)mpRequestRoom('joinRoom',code);
+ else mpStatus('Enter a room code first');
+});
+function mpFindLock(dt){if(!run||J.dead){MP.lockId=null;MP.lockTimer=0;$('pvpLock').textContent='RADAR: SEARCHING';$('pvpLock').style.color='#9eb9a7';return}const fw=F();let best=null,bd=4000;for(const [id,p] of MP.players){if(p.team===MP.team||!p.aircraft.visible)continue;const v=p.aircraft.position.clone().sub(J.p),r=v.length();if(r<180||r>bd)continue;const dot=v.normalize().dot(fw);if(dot<.975)continue;best=id;bd=r}if(best===MP.lockId){if(best)MP.lockTimer+=dt}else{MP.lockId=best;MP.lockTimer=0}const el=$('pvpLock');if(el){if(MP.lockId&&MP.lockTimer>=1){el.textContent='RADAR: ENEMY LOCK';el.style.color='#ff7777'}else if(MP.lockId){el.textContent='RADAR: TRACKING';el.style.color='#ffd36a'}else{el.textContent='RADAR: SEARCHING';el.style.color='#9eb9a7'}}}
+function mpSendPose(now,force=false){
+ const socket=MP.socket;
+ if(!socket?.connected||!MP.room||J.dead>0||(!force&&now+.01<MP.nextSendAt))return;
+ // Keep the remainder between frames so 60 Hz and 144 Hz displays send at the same rate.
+ const late=now-MP.nextSendAt;
+ MP.nextSendAt=late>=SNAPSHOT_INTERVAL||force?now+SNAPSHOT_INTERVAL:MP.nextSendAt+SNAPSHOT_INTERVAL;
+ const r=RND;
+ socket.volatile.emit('playerState',{
+  spawnSeq:MP.lastSpawnSeq,
+  x:r(J.p.x,100),y:r(J.p.y,100),z:r(J.p.z,100),
+  vx:r(J.v.x,10),vy:r(J.v.y,10),vz:r(J.v.z,10),
+  qx:r(J.q.x,1e4),qy:r(J.q.y,1e4),qz:r(J.q.z,1e4),qw:r(J.q.w,1e4),
+  gun:run&&!!(gunH||K.KeyF)
+ });
+}
+function mpTick(dt,now){
+ updateThreatBanner();
+ for(let i=MP.tracers.length-1;i>=0;i--){
+  const t=MP.tracers[i];
+  t.age+=dt;
+  t.life=t.max-t.age;
+  if(t.life<=0){mpDisposeEffect(t.m);MP.tracers.splice(i,1);continue}
+  t.m.material.opacity=t.life/t.max;
+  const a=t.m.geometry.attributes.position.array;
+  for(let j=0;j<t.bullets.length;j++){
+   const b=t.bullets[j],age=t.age,x=b.p.x+b.v.x*age,y=b.p.y+b.v.y*age-4.905*age*age,z=b.p.z+b.v.z*age;
+   const vx=b.v.x,vy=b.v.y-9.81*age,vz=b.v.z,vl=Math.hypot(vx,vy,vz)||1,k=j*6;
+   a[k]=x;a[k+1]=y;a[k+2]=z;
+   a[k+3]=x-vx/vl*17;a[k+4]=y-vy/vl*17;a[k+5]=z-vz/vl*17;
+  }
+  t.m.geometry.attributes.position.needsUpdate=true;
+ }
+ for(let i=MP.remoteFlares.length-1;i>=0;i--){
+  const f=MP.remoteFlares[i];
+  f.life-=dt;
+  f.v.y-=9.81*dt;
+  f.m.position.addScaledVector(f.v,dt);
+  if(f.life<=0){mpDisposeEffect(f.m);MP.remoteFlares.splice(i,1)}
+ }
+ if(!MP.socket?.connected||!MP.room)return;
+ mpSendPose(now);
+ const time=mpPlaybackTime(now);
+ for(const p of MP.players.values())mpRenderRemote(p,time,now,dt);
+ mpFindLock(dt);
+ const desired=MP.lockId&&MP.lockTimer>=1?MP.lockId:null;
+ if(desired!==MP.lockSent){
+  MP.lockSent=desired;
+  MP.socket.emit('lockState',{targetId:desired});
+ }
+ for(const p of MP.projectiles.values()){const since=Math.min(.15,(performance.now()-p.lastServerUpdate)/1000);p.pos.addScaledVector(p.serverVel,dt);p.pos.lerp(p.serverPos.clone().addScaledVector(p.serverVel,since),1-Math.exp(-12*dt));p.m.position.copy(p.pos);if(p.serverVel.lengthSq()>.01){const desired=new T.Quaternion().setFromUnitVectors(V3(0,0,-1),p.serverVel.clone().normalize());p.m.quaternion.slerp(desired,1-Math.exp(-24*dt))}if(p.weapon==='missile'){p.smokeAcc=(p.smokeAcc||0)+dt;while(p.smokeAcc>=.10){p.smokeAcc-=.10;fx(p.pos.clone(),V3(rnd()*.45,rnd()*.45,rnd()*.45),.22,1.4,.8,0xbfc7cb,0,.30)}}}}
 
 /* ---------- main loop ---------- */
 const sq=new T.Quaternion();let last=performance.now(),orb=0,vis=0;resize();rebuild(J.p.x,J.p.z);plant(J.p.x,J.p.z);cycle();cycle();cycle();cycle();
@@ -695,7 +1064,7 @@ function loop(now){requestAnimationFrame(loop);const dt=Math.min(.05,(now-last)/
  sky.position.copy(cam.position);sea.position.set(cam.position.x,SEA,cam.position.z);updateSea(cam.position.x,cam.position.z,now*.001);sunS.position.copy(cam.position).addScaledVector(SU.uSun.value,17500);
  {const nn=view===0?.12:cl(.6+Math.max(0,cam.position.y-SEA-30)*.004,.6,8);if(Math.abs(nn/cam.near-1)>.06){cam.near=nn;cam.updateProjectionMatrix()}}
  for(const c of clouds){c.position.x=J.p.x+((c.position.x-J.p.x+8000)%16000+16000)%16000-8000;c.position.z=J.p.z+((c.position.z-J.p.z+8000)%16000+16000)%16000-8000}
- updFx(dt);mpTick(dt);mpHud();if(msgT>0)msgT-=dt;R.render(sc,cam);hud()}
+ updFx(dt);mpTick(dt,now);mpHud();if(msgT>0)msgT-=dt;R.render(sc,cam);hud()}
 $('go').addEventListener('click',()=>{$('ov').style.display='none';run=true;view=2;cycle();msg('Advance the throttle and roll north',4)});
 requestAnimationFrame(loop);
 </script>

@@ -9,6 +9,8 @@ roots.forEach(r=>app.use(express.static(r)));
 app.get('/',(q,s)=>{const f=roots.flatMap(r=>['index.html','index-2.html'].map(n=>path.join(r,n))).find(fs.existsSync);f?s.sendFile(f):s.status(404).send('index.html not found next to server.js')});
 // SCORING: 10 pts per enemy building, 100 pts per enemy jet kill, -30 pts for dying by yourself.
 // The match always runs the full time; the team with the most points wins (destroying a whole city no longer ends it).
+const {performance}=require('node:perf_hooks');
+const TICK_MS=1000/30, MAX_STATE_AGE_MS=250;
 const BASE={blue:-3600,red:3600},MATCH=600,TOTAL=36,PT_BLD=10,PT_KILL=100,PT_SUICIDE=30,rooms=new Map();
 // 20 mm M61A1 Vulcan cannon: 6000 rounds/min, ~1030 m/s muzzle velocity, 6250 m bullet range.
 const GUN={rpm:6000,vel:1030,range:6250,life:9,dmg:7,critChance:.08,critMult:3};
@@ -41,7 +43,12 @@ function newRoom(){
  return r;
 }
 
-const roster=r=>[...r.players.values()].map(p=>({id:p.id,name:p.name,team:p.team,state:p.state}));
+const roster=r=>[...r.players.values()].map(p=>({
+ id:p.id,name:p.name,team:p.team,state:p.state,hp:p.hp,dead:p.dead,spawnSeq:p.spawnSeq
+}));
+const spawnState=team=>({
+ x:BASE[team],y:1.95,z:1120,vx:0,vy:0,vz:0,qx:0,qy:0,qz:0,qw:1,fx:0,fy:0,fz:-1
+});
 
 function spawnMsg(p){
  return{id:p.id,name:p.name,team:p.team,x:BASE[p.team],y:1.95,z:1120,spawnSeq:p.spawnSeq,invulnerableUntil:p.invulnerableUntil};
@@ -52,12 +59,12 @@ function join(sock,r,name){
  const n=t=>[...r.players.values()].filter(p=>p.team===t).length;
  const team=n('blue')<=n('red')?'blue':'red';
  const now=Date.now();
- const p={id:sock.id,name:String(name||'Pilot').slice(0,16),team,state:null,hp:100,dead:false,deadAt:0,respawnAt:0,spawnSeq:0,invulnerableUntil:now+10000,kills:0,deaths:0,suicides:0,gun:false,gc:0,mc:0,missileShots:0,missileStation:0,missileReloadUntil:0,lockedTarget:null,lockSnapshot:null,flareAt:0,gunTraceCounter:0,mt:[],fwdPrev:null,lastStateAt:0,turnRate:0};
+ const p={id:sock.id,name:String(name||'Pilot').slice(0,16),team,state:spawnState(team),stateDirty:false,hp:100,dead:false,deadAt:0,respawnAt:0,spawnSeq:0,invulnerableUntil:now+10000,kills:0,deaths:0,suicides:0,gun:false,gc:0,mc:0,missileShots:0,missileStation:0,missileReloadUntil:0,lockedTarget:null,lockSnapshot:null,flareAt:0,gunTraceCounter:0,mt:[],fwdPrev:null,lastStateAt:0,turnRate:0};
  r.players.set(sock.id,p);
  sock.join(r.code);
  sock.data.room=r.code;
  sock.emit(r.players.size===1?'roomCreated':'roomJoined',{code:r.code,team,count:r.players.size,players:roster(r)});
- sock.to(r.code).emit('playerJoined',{id:p.id,name:p.name,team});
+ sock.to(r.code).emit('playerJoined',{id:p.id,name:p.name,team,state:p.state,spawnSeq:p.spawnSeq});
  io.to(r.code).emit('roomCount',{count:r.players.size});
 }
 
@@ -96,7 +103,8 @@ function hit(r,t,owner,dmg,weapon,now){
 function respawnPlayer(r,p){
  if(!p||!p.dead)return false;
  p.dead=false;p.hp=100;p.deadAt=0;p.respawnAt=0;p.spawnSeq++;p.invulnerableUntil=Date.now()+10000;
- p.state={x:BASE[p.team],y:1.95,z:1120,vx:0,vy:0,vz:0,qx:0,qy:0,qz:0,qw:1,fx:0,fy:0,fz:-1};
+ p.state=spawnState(p.team);
+ p.stateDirty=false;
  p.gun=false;p.gc=0;p.missileStation=0;p.mt=[];p.lockedTarget=null;p.lockSnapshot=null;p.fwdPrev=null;p.lastStateAt=0;p.turnRate=0;
  io.to(r.code).emit('playerRespawned',spawnMsg(p));
  return true;
@@ -165,7 +173,7 @@ function missileGuidance(r,m,dt,now){
  return true;
 }
 
-function missileThreats(r,now){
+function missileThreats(r){
  const byTarget=new Map();
  for(const m of r.projs){
   if(m.type!=='missile')continue;
@@ -178,44 +186,48 @@ function missileThreats(r,now){
   const a=byTarget.get(p.id)||[];
   a.push(item);byTarget.set(p.id,a);
  }
- for(const p of r.players.values()){
-  if(p.dead)continue;
-  const threats=(byTarget.get(p.id)||[]).sort((a,b)=>a.distance-b.distance).slice(0,3);
-  io.to(p.id).emit('missileThreat',{threats,serverTime:now});
- }
+ return [...byTarget].map(([targetId,threats])=>({
+  targetId,threats:threats.sort((a,b)=>a.distance-b.distance).slice(0,3)
+ }));
 }
 
 io.on('connection',sock=>{
  const R=()=>rooms.get(sock.data.room),P=()=>R()?.players.get(sock.id);
 
- sock.on('createRoom',d=>join(sock,newRoom(),d?.name));
+ const alreadyJoined=()=>{
+  if(!P())return false;
+  sock.emit('roomError',{message:'You are already in a room'});
+  return true;
+ };
+ sock.on('createRoom',d=>{if(!alreadyJoined())join(sock,newRoom(),d?.name)});
  sock.on('joinRoom',d=>{
+  if(alreadyJoined())return;
   const r=rooms.get(String(d?.code||'').toUpperCase());
   r?join(sock,r,d.name):sock.emit('roomError',{message:'Room not found'});
  });
 
  sock.on('playerState',d=>{
   const p=P();
-  if(!p||p.dead||!d||!fin(d.x,d.y,d.z,d.qx,d.qy,d.qz,d.qw))return;
-  p.state={x:d.x,y:d.y,z:d.z,vx:Number.isFinite(d.vx)?d.vx:0,vy:Number.isFinite(d.vy)?d.vy:0,vz:Number.isFinite(d.vz)?d.vz:0,qx:d.qx,qy:d.qy,qz:d.qz,qw:d.qw,fx:d.fx,fy:d.fy,fz:d.fz};
-  p.gun=!!d.gun;
-  // Smoothed turn rate (rad/s) from the change in heading since the last update.
-  // Used to reward an actual break turn (notch/beam) when a flare is thrown, not just the flare alone.
-  {
-   const now0=Date.now(),f1=[d.fx,d.fy,d.fz];
-   if(fin(...f1)){
-    if(p.fwdPrev&&p.lastStateAt){
-     const dt0=Math.max(.02,Math.min(.5,(now0-p.lastStateAt)/1000));
-     const ang0=Math.acos(Math.max(-1,Math.min(1,p.fwdPrev[0]*f1[0]+p.fwdPrev[1]*f1[1]+p.fwdPrev[2]*f1[2])));
-     p.turnRate=(p.turnRate||0)*.6+(ang0/dt0)*.4;
-    }
-    p.fwdPrev=f1;
-   }
-   p.lastStateAt=now0;
+  if(!p||p.dead||!d||d.spawnSeq!==p.spawnSeq||!fin(d.x,d.y,d.z,d.qx,d.qy,d.qz,d.qw))return;
+  const length=Math.hypot(d.qx,d.qy,d.qz,d.qw);
+  if(!Number.isFinite(length)||length<.001)return;
+  const state={
+   x:d.x,y:d.y,z:d.z,
+   vx:Number.isFinite(d.vx)?d.vx:0,vy:Number.isFinite(d.vy)?d.vy:0,vz:Number.isFinite(d.vz)?d.vz:0,
+   qx:d.qx/length,qy:d.qy/length,qz:d.qz/length,qw:d.qw/length
+  };
+  const forward=rot(state,[0,0,-1]),receivedAt=performance.now();
+  [state.fx,state.fy,state.fz]=forward;
+  if(p.fwdPrev){
+   const elapsed=Math.max(.02,Math.min(.5,(receivedAt-p.lastStateAt)/1000));
+   const angle=Math.acos(Math.max(-1,Math.min(1,dot(p.fwdPrev,forward))));
+   p.turnRate=p.turnRate*.6+(angle/elapsed)*.4;
   }
-  const st=Date.now(),s=p.state,rd=(v,k)=>Math.round(v*k)/k;
-  // Relayed immediately (no batching delay) and stamped with server time so clients can interpolate smoothly.
-  sock.volatile.to(sock.data.room).emit('playerState',{id:p.id,name:p.name,team:p.team,st,state:{x:rd(s.x,100),y:rd(s.y,100),z:rd(s.z,100),vx:rd(s.vx,10),vy:rd(s.vy,10),vz:rd(s.vz,10),qx:rd(s.qx,1e4),qy:rd(s.qy,1e4),qz:rd(s.qz,1e4),qw:rd(s.qw,1e4),hp:p.hp,dead:p.dead,invulnerable:p.invulnerableUntil>st}});
+  p.state=state;
+  p.stateDirty=true;
+  p.gun=d.gun===true;
+  p.fwdPrev=forward;
+  p.lastStateAt=receivedAt;
  });
 
  sock.on('lockState',d=>{
@@ -304,12 +316,12 @@ io.on('connection',sock=>{
  });
 });
 
-let tick=0,lastTick=Date.now();
+let tick=0,lastTick=performance.now();
 
-// 30 Hz simulation (was 20 Hz). dt is measured, so a slow tick never slows the game down.
 setInterval(()=>{
- const now=Date.now(),dt=Math.min(.1,Math.max(.01,(now-lastTick)/1000));
- lastTick=now;
+ const now=Date.now(),snapshotTime=performance.now();
+ const dt=Math.min(.1,(snapshotTime-lastTick)/1000);
+ lastTick=snapshotTime;
  tick++;
 
  for(const r of rooms.values()){
@@ -338,10 +350,19 @@ setInterval(()=>{
    for(const p of ps){p.kills=0;p.deaths=0;p.suicides=0;p.hp=0;p.dead=true;respawnPlayer(r,p)}
   }
 
+  // Send the newest state for each pilot once per tick. A newer batch replaces a dropped one.
+  const states=[];
   const gunTracers=[];
   for(const p of ps){
    if(p.dead&&p.respawnAt&&now>=p.respawnAt&&!r.over)respawnPlayer(r,p);
-   if(p.gun&&!p.dead&&p.state&&!r.over){
+   if(p.stateDirty){
+    p.stateDirty=false;
+    if(!p.dead){
+     const {fx,fy,fz,...pose}=p.state;
+     states.push({id:p.id,spawnSeq:p.spawnSeq,pose});
+    }
+   }
+   if(p.gun&&!p.dead&&!r.over&&snapshotTime-p.lastStateAt<MAX_STATE_AGE_MS){
     p.gc-=dt;
     while(p.gc<=0){
      p.gc+=60/GUN.rpm;
@@ -354,8 +375,7 @@ setInterval(()=>{
    }else p.gc=0;
   }
 
-  if(gunTracers.length)io.to(r.code).emit('gunTracerBatch',gunTracers);
-
+  const missiles=[];
   r.projs=r.projs.filter(m=>{
    const end=hit=>{
     if(m.type==='missile')io.to(r.code).emit('projectileEnd',{id:m.id,hit,weapon:'missile',x:m.x,y:m.y,z:m.z});
@@ -399,16 +419,20 @@ setInterval(()=>{
     }
    }
 
-   if(m.type==='missile')io.to(r.code).emit('projectileUpdate',{id:m.id,x:m.x,y:m.y,z:m.z,vx:m.v[0],vy:m.v[1],vz:m.v[2],serverTime:now});
+   if(m.type==='missile')missiles.push({id:m.id,x:m.x,y:m.y,z:m.z,vx:m.v[0],vy:m.v[1],vz:m.v[2]});
    return true;
   });
 
-  if(tick%3===0)missileThreats(r,now);
+  const threats=tick%3===0?missileThreats(r):undefined;
+  // One replaceable packet per tick leaves room for reliable lifecycle and combat events.
+  if(states.length||gunTracers.length||missiles.length||threats?.length){
+   io.to(r.code).volatile.emit('roomSnapshot',{time:snapshotTime,states,gunTracers,missiles,threats});
+  }
 
   if(tick%6===0)io.to(r.code).emit('combatState',{players:ps.map(p=>({id:p.id,name:p.name,team:p.team,hp:p.hp,dead:p.dead,kills:p.kills,deaths:p.deaths,suicides:p.suicides,missiles:4,gunAmmo:-1,spawnSeq:p.spawnSeq,invulnerable:p.invulnerableUntil>now,invulnerabilityMs:Math.max(0,p.invulnerableUntil-now)}))});
 
   if(tick%15===0)io.to(r.code).emit('matchState',{left:r.left,started:r.started,over:r.over,winner:r.winner,dead:{blue:[...r.dead.blue],red:[...r.dead.red]},pts:{blue:pts(r,'blue'),red:pts(r,'red')},kills:r.kills,suicides:r.suicides});
  }
-},33);
+},TICK_MS);
 
 srv.listen(process.env.PORT||3000,()=>console.log('Jet game on http://localhost:'+(process.env.PORT||3000)));
